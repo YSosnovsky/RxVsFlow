@@ -7,6 +7,7 @@ import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.core.Single
 import io.reactivex.rxjava3.disposables.CompositeDisposable
 import io.reactivex.rxjava3.schedulers.Schedulers
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -15,6 +16,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterIsInstance
@@ -26,6 +28,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit.MILLISECONDS
 
@@ -115,7 +118,7 @@ class Consuming {
     // Flow is better suited for null values
     fun nullNotSupported() {
         val flow: Flow<Int?> = flowOf(1, null, 2) //this is fine!
-//        val observable = Observable.just(1, null, 2) //this will crash :(
+        val observable = Observable.just(1, null, 2) //this will crash :(
 
         //no problem - wrap in 'Optional'
         val observable2: Observable<Optional<Int>> =
@@ -124,16 +127,15 @@ class Consuming {
         //consume flows and ignore nulls - very easy. compiler helps.
         flow
             .filterNotNull() //no 'null' values will be received
-            .onEach { if (it + 0 == 42) println("nice!") } //compiler knows it's never null (compiler 'contracts' supported)
+            .onEach { if (it * 1 == 42) println("nice!") } //compiler knows it's never null (compiler 'contracts' supported)
             .launchIn(scope)
 
         //how do we consume 'Optional' types?
         observable2
             .filter { it.data != null } // looks reasonable
             .map { it.data } //warning - the compiler can't ensure non null - warnings everywhere. very messy.
-
             // what about simple arithmetic operators?
-//            .subscribe { if (it + 0 == 42) println("nice!") } //doesn't compile, can be null!
+//            .subscribe { if (it * 1 == 42) println("nice!") } //doesn't compile, can be null
 
             //no problem - let's null check -
 //            .subscribe { it?.let { number -> if (number + 0 == 42) println("nice") } //awful. you now have to support null values, that will never be received
@@ -153,6 +155,7 @@ class Consuming {
                 if (num + 0 == 42) println("nice!")
             }
 
+        //maybe my RxJava skill isn't good enough :(
         //try to compare your favorite Rx subscribe method with the flow function.
     }
 
@@ -192,7 +195,8 @@ class Consuming {
 
         //try to achieve with Rx (unfortunately for me, adding delay was painful)
         val userObservableNoDelay = Observable.just(
-            User.SignedOut, User.SignedIn(
+            User.SignedOut,
+            User.SignedIn(
                 id = "user_id",
                 name = "user_name",
                 email = "user_mail"
@@ -201,7 +205,7 @@ class Consuming {
 
         val helloUserMessageFromObservable =
             userObservableNoDelay
-                .filter { it is User.SignedIn } //no smart contract with compiler :(
+                .filter { it is User.SignedIn } //no help from compiler :(
                 .distinctUntilChanged()
                 .subscribe {
                     //what's the type? - Type is 'User'. More boilerplate code to come
@@ -210,14 +214,16 @@ class Consuming {
                     // but what if someone removes the filter? - crash.
 
                     //alternative?
-                    val maybeSignedIn = it as? User.SignedIn //will not crash, but can the compiler be sure? - no
+                    val maybeSignedIn = it as? User.SignedIn //will not crash, but still need to null check
 
                     //more boilerplate is needed
                     if (maybeSignedIn != null) {
                         println("hello user ${maybeSignedIn.name}")
+                    } else {
+                        //what about the 'else' part? do nothing? print warning? print error? how would you handle this?
+                        println("should never get here")
                     }
 
-                    //what about the 'else' part? do nothing? print warning? print error? how would you handle this?
                 }
 
         disposables.add(helloUserMessageFromObservable)
@@ -228,28 +234,28 @@ class Consuming {
 class Mapping {
 
     //viewModel scopes are managed by androidx libraries 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.4.0'
-    private val scope = CoroutineScope(Dispatchers.Main)
+    private val scope = CoroutineScope(Dispatchers.Main) + CoroutineName("my custom scope")
 
     // need to implement every time. possible solution to add BaseViewModel/RxViewModel
     private val disposables = CompositeDisposable()
 
     //writing async method to run on different thread with delay using Coroutines is very easy
-    private suspend fun hiThereSuspend(): Int = withContext(Dispatchers.Default) {
+    private suspend fun heyThereSuspend(): String = withContext(Dispatchers.Default) {
         delay(5_000L)
-        42
+        "hey there"
     }
 
-    //writing async method to run on different thread with delay requires more coding.
-    private fun hiThereSingle(): Single<Int> {
+    //rx - writing async method to run on different thread with delay requires more coding.
+    private fun heyThereSingle(): Single<String> {
         return Completable
             .timer(5_000L, MILLISECONDS)
-            .andThen(Single.just(42))
+            .andThen(Single.just("hey there"))
             .subscribeOn(Schedulers.computation())
     }
 
     fun mappingAsyncFlow() {
-        flowOf(1)
-            .map { hiThereSuspend() }
+        flowOf("hey")
+            .map { heyThereSuspend() } //operators support 'suspend'. transform: suspend (value: T) -> R
             .flowOn(Dispatchers.IO)
             .onEach { println(it) }
             .launchIn(scope)
@@ -259,9 +265,9 @@ class Mapping {
     }
 
     fun mappingAsyncObservable() {
-        val disposable = Observable.just(1)
-//            .flatMap { hiThereSingle() }  //flat map will not compile because type is Single
-            .flatMapSingle { hiThereSingle() }
+        val disposable = Observable.just("hey")
+//            .flatMap { heyThereSingle() }  //flat map will not compile because type is Single
+            .flatMapSingle { heyThereSingle() }
             .subscribeOn(Schedulers.io())
             .subscribe { println(it) }
 
@@ -287,7 +293,7 @@ class Backpressure {
                 capacity = 10,
                 onBufferOverflow = DROP_OLDEST
             ) //add buffer
-//            .conflate()
+            .conflate()
             .onEach { println(it) }
             .launchIn(scope)
     }
@@ -296,10 +302,8 @@ class Backpressure {
         myObservable
             .toFlowable(LATEST)
             .buffer(1)
-//            .toFlowable(LATEST) //have to cast to Flowable first
             .debounce(2000L, MILLISECONDS)
             .buffer(1000, 1) //Too much options for me
-
     }
 
 }
@@ -310,7 +314,6 @@ class LocationProvider {
     fun interface LocationListener {
         fun onLocationUpdated(location: Location)
     }
-
 
     fun addLocationListener(listener: LocationListener) {
         //todo implement
