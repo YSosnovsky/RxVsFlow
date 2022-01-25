@@ -39,6 +39,7 @@ class RxViewModel : ViewModel() {
         userEmitter
             .map { user ->
                 when (user) {
+                    null -> Failure("user is null")
                     is SignedIn -> Success(user.name.permute())
                     SignedOut -> Failure("no user found")
                 }

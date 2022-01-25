@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.lang.RuntimeException
 
 class FlowViewModel(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
@@ -34,7 +33,7 @@ class FlowViewModel(
     private val userEmitter = MutableStateFlow<User>(SignedOut)
     val user: StateFlow<User> = userEmitter
 
-    //no need for another library, sharedFlow works
+    //sharedFlow works as SingleLiveEvent
     private val errorEmitter = MutableSharedFlow<String>(
         replay = 1,
         onBufferOverflow = DROP_OLDEST

@@ -15,14 +15,12 @@ import com.example.rxvsflow.UserNamePermutations.NotInitialized
 import com.example.rxvsflow.UserNamePermutations.Success
 import com.example.rxvsflow.viewModels.FlowViewModel
 import com.example.rxvsflow.viewModels.LiveDataViewModel
-import com.example.rxvsflow.viewModels.RxViewModel
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 
 class MainActivity : AppCompatActivity() {
 
     private val flowViewModel: FlowViewModel by viewModels()
-    private val rxViewModel: RxViewModel by viewModels()
     private val liveDataViewModel: LiveDataViewModel by viewModels()
 
     private fun userNameInput(): String = findViewById<EditText>(R.id.user_name).text.toString()

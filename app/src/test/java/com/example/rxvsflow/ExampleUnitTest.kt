@@ -1,8 +1,9 @@
 package com.example.rxvsflow
 
-import org.junit.Test
-
-import org.junit.Assert.*
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import org.junit.*
 
 /**
  * Example local unit test, which will execute on the development machine (host).
@@ -10,8 +11,11 @@ import org.junit.Assert.*
  * See [testing documentation](http://d.android.com/tools/testing).
  */
 class ExampleUnitTest {
+
     @Test
-    fun addition_isCorrect() {
-        assertEquals(4, 2 + 2)
+    fun test() = runBlocking {
+        val flow = flow { emit(1) }
+        val value = flow.toList().first()
+        assert(value == 1)
     }
 }
