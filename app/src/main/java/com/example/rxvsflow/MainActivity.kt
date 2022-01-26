@@ -50,10 +50,7 @@ class MainActivity : AppCompatActivity() {
         flowViewModel
             .errors
             .onEach { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
-            .flowWithLifecycle(
-                lifecycle,
-                Lifecycle.State.CREATED
-            ) //extension by jetpack - cancels the underlying producer when the Lifecycle moves in and out of the target state
+            .flowWithLifecycle(lifecycle) //extension by jetpack - cancels the underlying producer when the Lifecycle moves in and out of the target state
             .launchIn(lifecycleScope)
 
         flowViewModel

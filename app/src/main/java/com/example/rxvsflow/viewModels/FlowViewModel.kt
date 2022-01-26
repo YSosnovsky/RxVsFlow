@@ -13,15 +13,15 @@ import com.example.rxvsflow.UserNamePermutations.Success
 import com.example.rxvsflow.permute
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,12 +33,15 @@ class FlowViewModel(
     private val userEmitter = MutableStateFlow<User>(SignedOut)
     val user: StateFlow<User> = userEmitter
 
-    //sharedFlow works as SingleLiveEvent
-    private val errorEmitter = MutableSharedFlow<String>(
-        replay = 1,
-        onBufferOverflow = DROP_OLDEST
-    )
-    val errors: Flow<String> = errorEmitter
+    //channel works as SingleLiveEvent
+    private val errorChannel = Channel<String>(Channel.BUFFERED)
+    val errors: Flow<String> = errorChannel.receiveAsFlow()
+
+    init {
+        viewModelScope.launch {
+            errorChannel.send("crash")
+        }
+    }
 
     val usernamePermutations: StateFlow<UserNamePermutations> =
         userEmitter
@@ -92,7 +95,7 @@ class FlowViewModel(
                     logError("failed to sign in", it)
                     //sharedFlow forces to only emit 'String'. 'String?' does not compile
                     //better readability, less code complexity with compile enforcement
-                    errorEmitter.emit(it.message ?: "unknown")
+                    errorChannel.send(it.message ?: "unknown")
                 }
         }
     }
